@@ -14,14 +14,14 @@ SELECT
     COUNT(DISTINCT FixedCustomerID) AS TotalCustomer, 
     Count(Distinct FixedPetID) AS TotalPet, 
     COUNT(FixedCustomerID) AS TotalOrder
-FROM PortfolioProject.dbo.petfood
+FROM PetPetProject.dbo.petfood
 WHERE  Year(OrderDateConverted) <> '2018'
 
 -- Вычисление среднего количества домашних животных на одного клиента
 SELECT 
     CAST(COUNT(DISTINCT FixedPetID) * 1.0 
     / COUNT(DISTINCT FixedCustomerID) AS DECIMAL(10, 2)) AS Pets_per_Customer
-FROM PortfolioProject.dbo.petfood
+FROM PetPetProject.dbo.petfood
 WHERE  Year(OrderDateConverted) <> '2018'
 
 -- Подсчет общего количества клиентов, имеющих более одного питомца (общего количества уникальных клиентов и в процентах от общего количества клиентов)
@@ -33,7 +33,7 @@ SELECT
     / COUNT(DISTINCT FixedCustomerID) AS PercentageCustomersWithMultiplePets
 FROM (
     SELECT FixedCustomerID, COUNT(DISTINCT FixedPetID) AS PetCount
-    FROM Portfolioproject..petfood 
+    FROM PetPetProject..petfood 
     WHERE Year(OrderDateConverted) <> '2018'
     GROUP BY FixedCustomerID
 ) AS subquery;
