@@ -33,7 +33,7 @@ SELECT
     / COUNT(DISTINCT FixedCustomerID) AS PercentageCustomersWithMultiplePets
 FROM (
     SELECT FixedCustomerID, COUNT(DISTINCT FixedPetID) AS PetCount
-    FROM PetPetProject..petfood 
+    FROM PetPetProject.dbo.petfood 
     WHERE Year(OrderDateConverted) <> '2018'
     GROUP BY FixedCustomerID
 ) AS subquery;
