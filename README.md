@@ -97,6 +97,47 @@ SELECT
     END AS PercentageChange
 FROM MonthlyOrders mo
 ORDER BY mo.Year, mo.Month;
+
+WITH CustomerStatus AS (
+    SELECT
+        YEAR(OrderDateConverted) AS year,
+        MONTH(OrderDateConverted) AS month,
+        FixedCustomerID,
+        MIN(OrderDateConverted) AS first_purchase_date
+    FROM Portfolioproject..petfood
+    WHERE YEAR(OrderDateConverted) <> '2018'
+    GROUP BY YEAR(OrderDateConverted), 
+    MONTH(OrderDateConverted), 
+    FixedCustomerID
+),
+
+MonthlyCustomerStatus AS (
+    SELECT
+        cs.year,
+        cs.month,
+        COUNT(DISTINCT CASE WHEN mo.month IS NOT NULL 
+              THEN cs.FixedCustomerID ELSE NULL END) AS existing_customers,
+        COUNT(DISTINCT CASE WHEN mo.month IS NULL 
+              THEN cs.FixedCustomerID ELSE NULL END) AS new_customers
+    FROM CustomerStatus cs
+    LEFT JOIN CustomerStatus mo
+        ON cs.FixedCustomerID = mo.FixedCustomerID
+        AND cs.first_purchase_date > mo.first_purchase_date
+    GROUP BY cs.year, cs.month
+)
+
+SELECT
+    mcs.year,
+    mcs.month,
+    mcs.existing_customers,
+    mcs.new_customers,
+    (mcs.existing_customers * 100.0) / 
+        (mcs.existing_customers + mcs.new_customers)
+        AS ExistingCustomersPercentage,
+    (mcs.new_customers * 100.0) / (mcs.existing_customers + mcs.new_customers)
+        AS NewCustomersPercentage
+FROM MonthlyCustomerStatus mcs
+ORDER BY mcs.year, mcs.month;
 ```
 - Количество новых клиентов постоянно увеличивалось из месяца в месяц, начиная с января 2019 года, а самый высокий процент новых клиентов (41%) наблюдался в октябре 2019 года
 - Однако в марте 2022 года процент новых клиентов достиг своего минимума. Это может быть связано с резким увеличением числа новых клиентов в последние месяцы. До марта 2022 года среднемесячное количество новых клиентов с декабря 2019 года по февраль 2020 года составляло 1439 человек, что на 151 % больше по сравнению со среднемесячным количеством с января 2019 года по ноябрь 2019 года
