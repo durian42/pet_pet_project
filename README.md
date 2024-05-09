@@ -4,7 +4,7 @@
 Разведочный анализ данных производится на основе биг [датасета](https://www.kaggle.com/datasets/jahangirraina/pet-food-customer-orders-online) продаж магазина c Kaggle: анализируя данные о продажах в зоомагазине, выявить идеи и тенденции в работы бизнеса и определить, как они могут улучшить маркетинговую стратегию компании
 
 ```sql
--- Calculating the total number of unique customers, pets, and orders in the petfood dataset for years other than 2018. 
+-- Считаем общее количество покупателей, питомцев и заказов в датасете для заказов не 2018 года 
     
 SELECT 
     COUNT(DISTINCT FixedCustomerID) AS TotalCustomer, 
