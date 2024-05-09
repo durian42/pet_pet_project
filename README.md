@@ -104,7 +104,7 @@ WITH CustomerStatus AS (
         MONTH(OrderDateConverted) AS month,
         FixedCustomerID,
         MIN(OrderDateConverted) AS first_purchase_date
-    FROM Portfolioproject..petfood
+    FROM PetPetProject.dbo.petfood
     WHERE YEAR(OrderDateConverted) <> '2018'
     GROUP BY YEAR(OrderDateConverted), 
     MONTH(OrderDateConverted), 
@@ -143,3 +143,43 @@ ORDER BY mcs.year, mcs.month;
 - Однако в марте 2022 года процент новых клиентов достиг своего минимума. Это может быть связано с резким увеличением числа новых клиентов в последние месяцы. До марта 2022 года среднемесячное количество новых клиентов с декабря 2019 года по февраль 2020 года составляло 1439 человек, что на 151 % больше по сравнению со среднемесячным количеством с января 2019 года по ноябрь 2019 года
 - Удержание клиентов демонстрирует устойчивый рост из месяца в месяц. Например, в августе 2019 года было 1165 заказов от существующих клиентов, которые более чем удвоились и достигли 3907 в декабре 2019 года  
 __Бизнес-возможность:__ Внедрение и активное продвижение новых продуктов для привлечения неосвоенных сегментов клиентов
+
+
+```sql
+WITH AllergenStatus AS (
+    SELECT
+        Fixedcustomerid,
+        CASE WHEN MAX(CASE WHEN pet_allergen_list IS NOT NULL 
+            THEN 1 ELSE 0 END) = 1 THEN 'Yes' ELSE 'No' END AS Pet_has_Allergen
+    FROM PetPetProject.dbo.petfood
+    WHERE Year(OrderDateConverted) <> '2018'
+    GROUP BY Fixedcustomerid
+),  
+OrdersPerCustomer AS (
+    SELECT
+        Fixedcustomerid,
+        COUNT(*) AS Total_Orders
+    FROM PetPetProject.dbo.petfood
+    GROUP BY Fixedcustomerid
+),  
+TotalCustomersAndOrders AS ( 
+    SELECT
+        a.Pet_has_Allergen,
+        COUNT(DISTINCT o.FixedCustomerID) AS Total_Customers,
+        SUM(o.Total_Orders) AS Total_Orders
+    FROM OrdersPerCustomer o
+    JOIN AllergenStatus a ON o.FixedcustomerID = a.FixedcustomerID
+    GROUP BY a.Pet_has_allergen
+)  
+
+SELECT
+    tca.Pet_has_Allergen,
+    tca.Total_Customers,
+    tca.Total_Orders,
+    tca.Total_Customers * 1.0 / SUM(tca.Total_Customers) OVER() 
+        AS Percent_Customers,
+    tca.Total_Orders * 1.0 / SUM(tca.Total_Orders) OVER() AS Percent_Orders
+
+FROM TotalCustomersAndOrders tca;
+```
+* Из общего числа зарегистрированных домашних животных 2 610 имеют аллегрию, что составляет 20 % от общего числа домашних животных
