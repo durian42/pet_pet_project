@@ -8,7 +8,7 @@
 Непосредственно анализ:
 
 ```sql
--- Считаем общее количество покупателей, питомцев и заказов в датасете для заказов не 2018 года 
+-- Считаем общее количество покупателей, питомцев и заказов в датасете для заказов не 2018 
     
 SELECT 
     COUNT(DISTINCT FixedCustomerID) AS TotalCustomer, 
@@ -16,4 +16,26 @@ SELECT
     COUNT(FixedCustomerID) AS TotalOrder
 FROM PortfolioProject.dbo.petfood
 WHERE  Year(OrderDateConverted) <> '2018'
+
+-- Вычисление среднего количества домашних животных на одного клиента
+SELECT 
+    CAST(COUNT(DISTINCT FixedPetID) * 1.0 
+    / COUNT(DISTINCT FixedCustomerID) AS DECIMAL(10, 2)) AS Pets_per_Customer
+FROM PortfolioProject.dbo.petfood
+WHERE  Year(OrderDateConverted) <> '2018'
+
+-- Подсчет общего количества клиентов, имеющих более одного питомца (общего количества уникальных клиентов и в процентах от общего количества клиентов)
+SELECT 
+    COUNT(DISTINCT CASE WHEN PetCount > 1 THEN FixedCustomerID END) 
+    AS TotalCustomerWithMultiplePets,
+    COUNT(DISTINCT FixedCustomerID) AS TotalCustomers,
+    (COUNT(DISTINCT CASE WHEN PetCount > 1 THEN FixedCustomerID END) * 100.0) 
+    / COUNT(DISTINCT FixedCustomerID) AS PercentageCustomersWithMultiplePets
+FROM (
+    SELECT FixedCustomerID, COUNT(DISTINCT FixedPetID) AS PetCount
+    FROM Portfolioproject..petfood 
+    WHERE Year(OrderDateConverted) <> '2018'
+    GROUP BY FixedCustomerID
+) AS subquery;
+
 ```
