@@ -142,10 +142,11 @@ ORDER BY mcs.year, mcs.month;
 - Количество новых клиентов постоянно увеличивалось из месяца в месяц, начиная с января 2019 года, а самый высокий процент новых клиентов (41%) наблюдался в октябре 2019 года
 - Однако в марте 2022 года процент новых клиентов достиг своего минимума. Это может быть связано с резким увеличением числа новых клиентов в последние месяцы. До марта 2022 года среднемесячное количество новых клиентов с декабря 2019 года по февраль 2020 года составляло 1439 человек, что на 151 % больше по сравнению со среднемесячным количеством с января 2019 года по ноябрь 2019 года
 - Удержание клиентов демонстрирует устойчивый рост из месяца в месяц. Например, в августе 2019 года было 1165 заказов от существующих клиентов, которые более чем удвоились и достигли 3907 в декабре 2019 года  
-__Бизнес-возможность:__ Внедрение и активное продвижение новых продуктов для привлечения неосвоенных сегментов клиентов
+__Бизнес-возможность:__ Внедрение и активное продвижение новых продуктов для привлечения неосвоенных сегментов клиентов  
 
 
 ```sql
+
 WITH AllergenStatus AS (
     SELECT
         Fixedcustomerid,
@@ -182,4 +183,88 @@ SELECT
 
 FROM TotalCustomersAndOrders tca;
 ```
-* Из общего числа зарегистрированных домашних животных 2 610 имеют аллегрию, что составляет 20 % от общего числа домашних животных
+* Из общего числа зарегистрированных домашних животных 2 610 имеют аллегрию, что составляет 20 % от общего числа домашних животных  
+
+```sql
+/* Посмотрим, есть ли взаимосвязи между аллергией у питомцев и покупательскими привычками клиентов*/  
+WITH AllergenStatus AS (
+    SELECT
+        Fixedcustomerid,
+        MAX(CASE WHEN pet_allergen_list IS NOT NULL THEN 1 ELSE 0 END) 
+        AS Pet_has_Allergen
+    FROM PetPetProject.dbo.petfood
+    WHERE Year(OrderDateConverted) <> '2018'
+    GROUP BY Fixedcustomerid
+),
+
+TotalCustomersAndOrders AS (
+    SELECT
+        a.Pet_has_Allergen,
+        COUNT(DISTINCT o.FixedCustomerID) AS Total_Customers,
+        SUM(COUNT(*)) OVER () AS Total_Orders,
+        COUNT(*) AS Total_OrdersPerAllergen
+    FROM PetPetProject.dbo.petfood o
+    JOIN AllergenStatus a ON o.FixedcustomerID = a.FixedcustomerID
+    GROUP BY a.Pet_has_Allergen
+)
+
+SELECT
+    CASE WHEN tca.Pet_has_Allergen = 0 THEN 'No' ELSE 'Yes' END 
+        AS Pet_has_Allergen,
+    tca.Total_Customers,
+    tca.Total_Orders,
+    tca.Total_Customers * 1.0 / SUM(tca.Total_Customers) 
+        OVER () AS Percent_Customers,
+    tca.Total_Orders * 1.0 / SUM(tca.Total_OrdersPerAllergen) 
+        OVER () AS Percent_Orders
+FROM TotalCustomersAndOrders tca;
+
+```
+*Видим, что существует некая связь: В среднем клиенты с домашними животными, страдающими аллергией, размещают 5.0 заказов, что на 19% больше, чем клиенты, чьи домашние животные без аллергий  
+
+```sql
+/*HealthIssueStatus показывает клиентов, у чьих питомцев с проблемами со здоровьем, проверяя на пустоту список заболеваний их животных*/  
+WITH HealthIssueStatus AS (
+    SELECT
+        Fixedcustomerid,
+    MAX(CASE WHEN pet_health_issue_list IS NOT NULL THEN 1 ELSE 0 END) 
+        AS Pet_has_Health_Issue
+    FROM PPetPetProject.dbo.petfood
+    GROUP BY Fixedcustomerid
+),
+
+/*Считаем общее количество заказов для каждого клиента, группируя по ID*/  
+
+OrdersPerCustomer AS (
+    SELECT
+        Fixedcustomerid,
+        COUNT(*) AS Total_Orders
+    FROM PetPetProject.dbo.petfood
+    GROUP BY Fixedcustomerid
+),
+
+TotalCustomersAndOrders AS ( 
+    SELECT
+        a.Pet_has_Health_Issue,
+        COUNT(DISTINCT o.FixedCustomerID) AS Total_Customers,
+        SUM(o.Total_Orders) AS Total_Orders
+    FROM OrdersPerCustomer o
+    JOIN HealthIssueStatus a ON o.FixedcustomerID = a.FixedcustomerID
+    GROUP BY a.Pet_has_Health_Issue
+)
+
+/*Преобразуем значение Pet_has_Health_Issue в Да и Нет для наглядности, отразим количество клиентов и заказов для каждой группы (в абсолютном и процентном соотношении)*/
+SELECT  
+    CASE WHEN tca.Pet_has_Health_Issue = 0 THEN 'No' ELSE 'Yes' END 
+        AS Pet_has_health_issue,
+    tca.Total_Customers,
+    tca.Total_Orders,
+    tca.Total_Customers * 1.0/ SUM(tca.Total_Customers) OVER () 
+        AS Percent_Customers,
+    tca.Total_Orders * 1.0/ SUM(tca.Total_Orders) OVER () AS Percent_Orders
+FROM TotalCustomersAndOrders tca;
+```
+*Видим взаимосвязь: клиенты с домашними животными, страдающими заболеваниями, размещают 4.69 заказов, что на 14.5% больше, чем клиенты, чьи питомцы полностью здоровы  
+*5609 покупателей, или 50% от общего числа покупателей, указали, что у их питомца есть проблемы со здоровьем  
+
+__Бизнес-возможность:__  Приоретезировать продвижение кормов для питомцев с заболеваниями, а не для питомцев с аллергией из-за более высокой распространенности проблем со здоровьем (50%) по сравнению с аллергией (20%)
