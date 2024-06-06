@@ -267,4 +267,130 @@ FROM TotalCustomersAndOrders tca;
 *Видим взаимосвязь: клиенты с домашними животными, страдающими заболеваниями, размещают 4.69 заказов, что на 14.5% больше, чем клиенты, чьи питомцы полностью здоровы  
 *5609 покупателей, или 50% от общего числа покупателей, указали, что у их питомца есть проблемы со здоровьем  
 
-__Бизнес-возможность:__  Приоретезировать продвижение кормов для питомцев с заболеваниями, а не для питомцев с аллергией из-за более высокой распространенности проблем со здоровьем (50%) по сравнению с аллергией (20%)
+__Бизнес-возможность:__  Приоретезировать продвижение кормов для питомцев с заболеваниями, а не для питомцев с аллергией из-за более высокой распространенности проблем со здоровьем (50%) по сравнению с аллергией (20%)  
+
+
+    Теперь обратим внимание на распределение количества заказов у покупателей
+```sql
+/*Распределим уникальных клиентов по диапазонам заказов и подсчитаем количество уникальных клиентов в каждом диапазоне*/  
+SELECT
+    OrderRange,
+    COUNT(FixedCustomerID) AS CustomerCount
+FROM (
+    SELECT
+        FixedCustomerID,
+        CASE
+            WHEN TotalOrders <= 10 THEN '1-10'
+            WHEN TotalOrders <= 20 THEN '11-20'
+            WHEN TotalOrders <= 30 THEN '21-30'
+            WHEN TotalOrders <= 40 THEN '31-40'
+            WHEN TotalOrders <= 50 THEN '41-50'
+            ELSE '50+'
+        END AS OrderRange
+    FROM (
+        SELECT
+            FixedCustomerID,
+            COUNT(*) AS TotalOrders
+        FROM PetPetProject.dbo.petfood
+        WHERE Year(OrderDateConverted) <> '2018'
+        GROUP BY FixedCustomerID
+    ) AS CustomerOrders
+) AS OrderRanges
+GROUP BY OrderRange
+ORDER BY OrderRange;
+```
+*10422 клиента разместили до 10 заказов, а 668 - от 11 до 20 заказов. Кроме того, 72 покупателя разместили от 31 до 40 заказов, и есть 6 клиентов, разместивших более 31 заказа  
+
+```sql
+/*Посмотрим, сколько времени в среднем проходит мужду заказами одного пользователя*/
+
+WITH OrderHistory AS (
+    SELECT
+        FixedCustomerID,
+        OrderDateConverted,
+        LAG(OrderDateConverted) OVER (PARTITION BY FixedCustomerID ORDER BY OrderDateConverted) AS PreviousOrderDate
+    FROM PetPetProject.dbo.petfood
+)
+
+SELECT
+    AVG(DATEDIFF(day, PreviousOrderDate, OrderDateConverted)) AS AvgTimeBetweenOrdersInDays
+FROM OrderHistory
+WHERE PreviousOrderDate IS NOT NULL;
+```
+
+*Среднее время между заказами - 25 дней  
+__Бизнес-возможность:__ Отправлять покупателям уведомления через 25 дней после их заказа, чтобы стимулировать повторные заказы
+
+```sql
+/*Считаем распределение заказов по сегментам продукции*/ 
+
+WITH petfoodtier AS(
+    SELECT Count(fixedcustomerID) as TotalOrders, pet_food_tier
+    FROM PetPetProject.dbo.petfood
+    WHERE year(OrderDateConverted) <> 2018
+    GROUP BY pet_food_tier
+)
+SELECT
+    pf.pet_food_tier, 
+    pf. TotalOrders,
+    pf.TotalOrders * 1.0/sum(pf.TotalOrders) over () *100 AS Percentage
+FROM petfoodtier pf
+```  
+*Из всех заказов 58% относятся к суперпремиальному уровню, 18% - к премиальному, а остальные 23% - к среднему  
+
+```sql
+/*Посмотрим, какоая часть заказов была сделана клиентами с активной подпиской*/
+WITH Subscription_Status AS(
+SELECT 
+    CASE WHEN pet_has_active_subscription = 0 THEN 'No' ELSE 'Yes' END AS SubscriptionStatus,
+count(fixedcustomerid) AS TotalOrders
+FROM PetPetProject.dbo.petfood
+WHERE year(OrderDateConverted) <> '2018'
+GROUP BY pet_has_active_subscription
+)
+
+SELECT SubscriptionStatus, TotalOrders,
+    TotalOrders *1.0/ SUM(TotalOrders) over () * 100 as percentage
+FROM Subscription_Status
+```
+
+*Всего 32895 заказов (67% от общего числа) были сделаны клиентами с активной подпиской
+
+
+```sql
+/*Узнаем, как соотносятся предпочтения в ценовых сегментах продукции и наличие активной подписки*/
+WITH petfoodtier AS(
+    SELECT Count(fixedcustomerID) as TotalOrders, pet_food_tier, pet_has_Active_subscription
+    FROM PetPetProject.dbo.petfood
+    WHERE year(OrderDateConverted) <> 2018
+    GROUP BY pet_food_tier, pet_has_active_subscription
+)
+SELECT
+    pf.pet_food_tier, 
+    pf. TotalOrders,
+    pf.TotalOrders * 1.0/sum(pf.TotalOrders) OVER (PARTITION BY pf.pet_has_active_subscription) *100 AS Percentage,
+    CASE WHEN pf.pet_has_Active_subscription = 0 THEN 'No' ELSE 'YES' END AS subscription_status
+FROM petfoodtier pf
+ORDER BY 3 DESC
+```
+
+*Покупатели без активной подписки чаще всего приобретают продукцию суперпремиального уровня, на которую приходится 59% всех заказов данной группы клиентов. Это на 2 % больше, чем среди покупателей с активной подпиской  
+__Бизнес-возможность:__ Рекламировать продукцию премиум сегмента клиентам без подписки, а клиентам с активной подпиской добавить скидку на премиум товары
+
+
+```sql
+/*Посмотрим, какие способы продвижения лучше всего конвертировались в заказы*/
+WITH signup_channel AS(
+SELECT signup_promo, COUNT(DISTINCT FixedcustomerID) NumofOrders
+FROM PetPetProject.dbo.petfood
+WHERE Year(OrderDateConverted) <> '2018'
+GROUP BY signup_promo 
+)
+
+SELECT sc.signup_promo, sc.NumofOrders, sc.NumofOrders *1.0 / SUM(NumofOrders) OVER ()*100 as Percentage
+FROM signup_channel sc
+WHERE sc.signup_promo <> 'Null & Default'
+ORDER BY 2 DESC
+```
+*Наибольшее количество заказов пришло через поисковые системы - 1916, что составляет 23% от общего числа заказов. Второй по успешности способ продвижения демонстрационная реклама, а за ней следует реферальная программа  
+__Бизнес-возможность:__ Продолжать вкладываться в SEO продвижение, а так же проанализировать, какие факторы успеха у этого способа и применить их в других рекламных сферах
